@@ -27,3 +27,30 @@
 
 
 
+/*!
+ * @brief Initializes the Custom Ethernet layer
+ *
+ * Call this API to initialize the Ethernet custom later
+ *
+ * @param cb_funct     Function pointer to the receive callback
+ */
+status_t Custom_ENET_Later_Init(receive_cb_function cb_func)
+{
+
+}
+
+
+/*!
+ * @brief Transmits a message using the custom Ethernet layer
+ *
+ * Call this API to transmit data through the custom Ethernet layer.
+ * 	The message will be encrypted using AES128 and will have an extra
+ * 	verification step by using CRC32
+ *
+ * @param data     	Pointer to the data array.
+ * @param len   	Length of the data to be transmitted
+ */
+status_t Custom_ENET_Later_Transmit(uint8_t *data, uint32_t len)
+{
+
+}
