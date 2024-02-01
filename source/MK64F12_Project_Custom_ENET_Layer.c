@@ -17,8 +17,15 @@
 #include "MK64F12.h"
 #include "fsl_debug_console.h"
 /* TODO: insert other include files here. */
-
+#include "custom_enet_layer.h"
 /* TODO: insert other definitions and declarations here. */
+
+void application_callback(uint8_t *data, uint32_t len)
+{
+	// Print the receive buffer on the console
+	PRINTF(data);
+}
+
 
 /*
  * @brief   Application entry point.
@@ -34,16 +41,16 @@ int main(void) {
     BOARD_InitDebugConsole();
 #endif
 
-    PRINTF("Hello World\r\n");
+    // Initialize the layer
+    Custom_ENET_Later_Init(application_callback);
 
-    /* Force the counter to be placed into memory. */
-    volatile static int i = 0 ;
+    // Send first package
+    char pck1[] = "Hola 1";
+    Custom_ENET_Later_Transmit(pck1, sizeof(pck1));
+
+
     /* Enter an infinite loop, just incrementing a counter. */
-    while(1) {
-        i++ ;
-        /* 'Dummy' NOP to allow source level single stepping of
-            tight while() loop */
-        __asm volatile ("nop");
-    }
+    while(1) {};
+
     return 0 ;
 }
