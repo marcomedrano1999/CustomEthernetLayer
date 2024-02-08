@@ -26,9 +26,9 @@ typedef void receive_cb_function(uint8_t *data, uint32_t len);
 
 
 /* Custom layer initialization function */
-void Custom_ENET_Later_Init(receive_cb_function cb_func);
+void Custom_ENET_Layer_Init(receive_cb_function cb_func);
 /* Custom layer transmit function */
-void Custom_ENET_Later_Transmit(uint8_t *data, uint32_t len);
+void Custom_ENET_Layer_Transmit(uint8_t *data, uint32_t len);
 
 
 

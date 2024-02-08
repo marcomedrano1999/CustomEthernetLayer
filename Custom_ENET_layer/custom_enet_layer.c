@@ -280,7 +280,7 @@ void Custom_ENET_Layer_Receive_Cb(uint32_t event)
  *
  * @param cb_funct     Function pointer to the receive callback
  */
-void Custom_ENET_Later_Init(receive_cb_function cb_func)
+void Custom_ENET_Layer_Init(receive_cb_function cb_func)
 {
 	// Save user's receive callback
 	if(cb_func != NULL)
@@ -349,7 +349,7 @@ void Custom_ENET_Later_Init(receive_cb_function cb_func)
  * @param data     	Pointer to the data array.
  * @param len   	Length of the data to be transmitted
  */
-void Custom_ENET_Later_Transmit(uint8_t *data, uint32_t len)
+void Custom_ENET_Layer_Transmit(uint8_t *data, uint32_t len)
 {
 	uint32_t BroadCastFrame_Size=0;
 
