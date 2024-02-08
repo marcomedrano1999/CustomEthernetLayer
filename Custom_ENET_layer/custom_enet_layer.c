@@ -98,6 +98,8 @@ static uint32_t aes128_encrypt(uint8_t *data, uint32_t len, uint8_t *output_arra
 {
 	uint32_t padded_len = len + (16 - (len%16));
 
+	aes128_init();
+
 	// Copy data to final array
 	memcpy(output_array, data, len);
 
@@ -132,6 +134,7 @@ static void InitCrc32(CRC_Type *base, uint32_t seed)
 
 uint32_t ComputeCRC32(uint8_t *testData, uint32_t size)
 {
+	InitCrc32(base, 0xFFFFFFFFU);
 	CRC_WriteData(base, (uint8_t *)&testData[0], size);
 	return CRC_Get32bitResult(base);
 }
@@ -243,6 +246,9 @@ void Custom_ENET_Layer_Receive_Cb(uint32_t event)
 					{
 						// Subtract the MAC header and the CRC32 size
 						data_len = len_wo_padding-14-4;
+
+						// Restart the ecryption module
+						aes128_init();
 
 						// Decode the message
 						AES_CBC_decrypt_buffer(&ctx, &data[14], data_len);
