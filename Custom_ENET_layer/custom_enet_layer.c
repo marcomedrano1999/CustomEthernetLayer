@@ -199,9 +199,9 @@ static uint32_t ENET_BuildBroadCastFrame(uint8_t *data, uint32_t len)
     // Add byte length of CRC32 to the data length
     data_len += 4;
 
-    // Set length in EtherType field
-    g_frame[12] = (data_len >> 8) & 0xFFU;
-    g_frame[13] = data_len & 0xFFU;
+    // Set data length in EtherType field
+    g_frame[12] = (len >> 8) & 0xFFU;
+    g_frame[13] = len & 0xFFU;
 
 
     return (data_len + 18);
@@ -234,10 +234,6 @@ void Custom_ENET_Layer_Receive_Cb(uint32_t event)
 				len = EXAMPLE_ENET.ReadFrame(data, size);
 				if (size == len)
 				{
-					for(int i=0; i<len; i++) {
-						PRINTF("0x%02x,", data[i]);
-					}
-					PRINTF("\n\r");
 
 					// Compute length without padding
 					len_wo_padding = Compute_Padding(data, len);
@@ -250,6 +246,9 @@ void Custom_ENET_Layer_Receive_Cb(uint32_t event)
 
 						// Decode the message
 						AES_CBC_decrypt_buffer(&ctx, &data[14], data_len);
+
+						// Extract the decrypted data len from the EtherType field
+						data_len = (data[12] << 8) + data[13];
 
 						// Call the user receive callback
 						User_ENET_Receive_Cb(&data[14], data_len);
