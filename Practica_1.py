@@ -95,8 +95,6 @@ def sendMessage(data):
     if(encrypted_len < 46):
         padding = bytes(46-encrypted_len)
         encrypted_message += padding
-    
-    print("Final len: ", len(encrypted_message))
 
     # Create frame
     frame = Ether()/encrypted_message
@@ -146,6 +144,11 @@ def main():
     sendMessage('Hello world')
     sendMessage('Hola a todos!')
     sendMessage('Hugo tuvo un tubo, pero el tubo que tuvo se le rompio. Para recuperar el tubo que tuvo, tuvo que comprar un tubo igual al tubo que tuvo.')
+    sendMessage('Si tu gusto no gusta del gusto que gusta mi gusto, que disgusto se lleva mi gusto al saber que tu gusto no gusta del gusto que gusta mi gusto.')
+    sendMessage('Me han dicho un dicho, que dicen que he dicho yo. Ese dicho esta mal dicho, pues si yo lo hubiera dicho, estaria mejor dicho, que ese dicho que dicen que algun dia dije yo.')
+    sendMessage('Erre con erre guitarra, erre con erre barril. Rapido ruedan las ruedas por los rieles del ferrocarril.')
+    sendMessage('Tres tristes tigres tragaban trigo en tres tristes trastos sentados tras un trigal. Sentados tras un trigal, en tres tristes trastos tragaban trigo tres tristes tigres')
+    sendMessage('Enfrente de Fuensanta hay una fuente de frente. Fuensanta frunce la frente, frente a la fuente que esta enfrente de frente.')
 
 
 if __name__=="__main__":
