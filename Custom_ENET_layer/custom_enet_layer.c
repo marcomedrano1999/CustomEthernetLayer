@@ -24,8 +24,8 @@
 #include "fsl_phyksz8081.h"
 #include "fsl_enet_mdio.h"
 #include "RTE_Device.h"
-
-
+#include "fsl_crc.h"
+#include "aes.h"
 
 
 
@@ -34,12 +34,22 @@
  ******************************************************************************/
 uint8_t g_frame[ENET_DATA_LENGTH + 14];
 volatile uint32_t g_testTxNum  = 0;
-uint8_t g_macAddr[6]           = MAC_ADDRESS;
+uint8_t source_macAddr[6]           = SOURCE_MAC_ADDRESS;
+uint8_t destination_macAddr[6]      = DESTINATION_MAC_ADDRESS;
 volatile uint32_t g_rxIndex    = 0;
 volatile uint32_t g_rxCheckIdx = 0;
 volatile uint32_t g_txCheckIdx = 0;
 
 receive_cb_function *User_ENET_Receive_Cb;
+
+// CRC32 variables
+CRC_Type *base = CRC0;
+uint32_t checksum32;
+
+// AES128 variables
+uint8_t key[] = AES128_KEY;
+uint8_t iv[] = AES128_IV;
+struct AES_ctx ctx;
 
 /*******************************************************************************
  * Code
@@ -55,39 +65,162 @@ uint32_t ENET0_GetFreq(void)
     return CLOCK_GetFreq(kCLOCK_CoreSysClk);
 }
 
-/*! @brief Build Frame for transmit. */
-static void ENET_BuildBroadCastFrame(uint8_t *data, uint32_t data_len)
+
+uint32_t Compute_Padding(uint8_t *data, uint32_t len)
 {
-    uint32_t count  = 0;
-    uint32_t length = ENET_DATA_LENGTH - 14;
+	uint32_t len_wo_padding = len;
 
-    for (count = 0; count < 6U; count++)
-    {
-        g_frame[count] = 0xFFU;
-    }
-    memcpy(&g_frame[6], &g_macAddr[0], 6U);
-    g_frame[12] = (length >> 8) & 0xFFU;
-    g_frame[13] = length & 0xFFU;
+	// Eliminate padding only when the size is the minimum
+	if(len == 60){
+		for(uint8_t i=len-1; i>0;i--)
+		{
+			if(data[i]!=0)
+			{
+				break;
+			}
+			len_wo_padding--;
+		}
+	}
 
-    for(count = 0; count < data_len; count++)
-    {
-    	g_frame[count+14] = data[count];
-    }
-
-    for (count = 0; count < (length - data_len); count++)
-    {
-        g_frame[count + data_len + 14] = count % 0xFFU;
-    }
+	return len_wo_padding;
 }
+
+
+static void aes128_init()
+{
+	// Init the AES context structure
+	AES_init_ctx_iv(&ctx, key, iv);
+
+}
+
+
+static uint32_t aes128_encrypt(uint8_t *data, uint32_t len, uint8_t *output_array)
+{
+	uint32_t padded_len = len + (16 - (len%16));
+
+	// Copy data to final array
+	memcpy(output_array, data, len);
+
+	// Encrypt the data
+	AES_CBC_encrypt_buffer(&ctx, output_array, padded_len);
+
+	return padded_len;
+}
+
+
+/*!
+ * @brief Init for CRC-32.
+ * @details Init CRC peripheral module for CRC-32 protocol.
+ *          width=32 poly=0x04c11db7 init=0xffffffff refin=true refout=true xorout=0xffffffff check=0xcbf43926
+ *          name="CRC-32"
+ *          http://reveng.sourceforge.net/crc-catalogue/
+ */
+static void InitCrc32(CRC_Type *base, uint32_t seed)
+{
+    crc_config_t config;
+
+    config.polynomial         = 0x04C11DB7U;
+    config.seed               = seed;
+    config.reflectIn          = true;
+    config.reflectOut         = true;
+    config.complementChecksum = true;
+    config.crcBits            = kCrcBits32;
+    config.crcResult          = kCrcFinalChecksum;
+
+    CRC_Init(base, &config);
+}
+
+uint32_t ComputeCRC32(uint8_t *testData, uint32_t size)
+{
+	CRC_WriteData(base, (uint8_t *)&testData[0], size);
+	return CRC_Get32bitResult(base);
+}
+
+
+uint8_t verifyDataCRC(uint8_t *data, uint32_t size)
+{
+	uint8_t status = CRC_NOT_OK;
+	uint32_t dataCRC32 = 0;
+	uint32_t computedCRC32 = 0;
+
+	// Extract data CRC32
+	dataCRC32 |= data[size-4] << 24;
+	dataCRC32 |= data[size-3] << 16;
+	dataCRC32 |= data[size-2] << 8;
+	dataCRC32 |= data[size-1];
+
+	// Compute CRC for data. Subtract 14 for the header and 4 for the CRC32
+	computedCRC32 = ComputeCRC32(&data[14], size-14-4);
+
+	// Compare the CRC32s
+	if(computedCRC32 == dataCRC32)
+	{
+		status = CRC_OK;
+	}
+
+	return status;
+}
+
+
+
+/*! @brief Build Frame for transmit. */
+static uint32_t ENET_BuildBroadCastFrame(uint8_t *data, uint32_t len)
+{
+	uint32_t data_len = 0;
+
+	// Clean the output frame
+	memset(&g_frame[0], 0, sizeof(g_frame));
+
+    // Copy destination MAC address
+    memcpy(&g_frame[0], &destination_macAddr[0], 6U);
+
+    // Copy source MAC address
+    memcpy(&g_frame[6], &source_macAddr[0], 6U);
+
+    // Encode the message using AES128
+    data_len = aes128_encrypt(data, len, &g_frame[14]);
+
+	// Disable interrupts in the CRC32 computation to prevent
+	//  data corruption if a frame is received in the process
+	__disable_irq();
+
+	// Add CRC32
+	uint32_t dataCRC32 = ComputeCRC32(&g_frame[14], data_len);
+
+	// Enable all interrupts again
+	__enable_irq();
+
+    // Copy CRC frame to output array
+    g_frame[data_len + 14] = (dataCRC32 >> 24) & 0xFFU;
+    g_frame[data_len + 15] = (dataCRC32 >> 16) & 0xFFU;
+    g_frame[data_len + 16] = (dataCRC32 >> 8) & 0xFFU;
+    g_frame[data_len + 17] = dataCRC32 & 0xFFU;
+
+    // Add byte length of CRC32 to the data length
+    data_len += 4;
+
+    // Set length in EtherType field
+    g_frame[12] = (data_len >> 8) & 0xFFU;
+    g_frame[13] = data_len & 0xFFU;
+
+
+    return (data_len + 18);
+}
+
+
+
 
 
 void Custom_ENET_Layer_Receive_Cb(uint32_t event)
 {
+	uint32_t size;
+	uint32_t len;
+	uint32_t len_wo_padding;
+	uint32_t data_len;
+	uint8_t *data;
 
 	if (event == ARM_ETH_MAC_EVENT_RX_FRAME)
 	{
-		uint32_t size;
-		uint32_t len;
 
 		/* Get the Frame size */
 		size = EXAMPLE_ENET.GetRxFrameSize();
@@ -95,20 +228,36 @@ void Custom_ENET_Layer_Receive_Cb(uint32_t event)
 		if (size != 0)
 		{
 			/* Received valid frame. Deliver the rx buffer with the size equal to length. */
-			uint8_t *data = (uint8_t *)malloc(size);
+			data = (uint8_t *)malloc(size);
 			if (data)
 			{
 				len = EXAMPLE_ENET.ReadFrame(data, size);
 				if (size == len)
 				{
+					for(int i=0; i<len; i++) {
+						PRINTF("0x%02x,", data[i]);
+					}
+					PRINTF("\n\r");
+
+					// Compute length without padding
+					len_wo_padding = Compute_Padding(data, len);
+
 					// Verify the data with CRC32
+					if( verifyDataCRC(data, len_wo_padding) == CRC_OK)
+					{
+						// Subtract the MAC header and the CRC32 size
+						data_len = len_wo_padding-14-4;
 
+						// Decode the message
+						AES_CBC_decrypt_buffer(&ctx, &data[14], data_len);
 
-					// Decode the message
-
-
-					// Call the user receive callback
-					User_ENET_Receive_Cb(data, len);
+						// Call the user receive callback
+						User_ENET_Receive_Cb(&data[14], data_len);
+					}
+					else
+					{
+						PRINTF("Data present errors in CRC32 verification!\r\n");
+					}
 				}
 				free(data);
 			}
@@ -152,7 +301,7 @@ void Custom_ENET_Later_Init(receive_cb_function cb_func)
     /* Initialize the ENET module. */
     EXAMPLE_ENET.Initialize(Custom_ENET_Layer_Receive_Cb);
     EXAMPLE_ENET.PowerControl(ARM_POWER_FULL);
-    EXAMPLE_ENET.SetMacAddress((ARM_ETH_MAC_ADDR *)g_macAddr);
+    EXAMPLE_ENET.SetMacAddress((ARM_ETH_MAC_ADDR *)source_macAddr);
 
     PRINTF("Wait for PHY init...\r\n");
     while (EXAMPLE_ENET_PHY.PowerControl(ARM_POWER_FULL) != ARM_DRIVER_OK)
@@ -181,6 +330,12 @@ void Custom_ENET_Later_Init(receive_cb_function cb_func)
 #endif
 
 
+    // Initialize the CRC module
+    InitCrc32(base, 0xFFFFFFFFU);
+
+    // Init the AES128 module
+    aes128_init();
+
 }
 
 
@@ -196,17 +351,13 @@ void Custom_ENET_Later_Init(receive_cb_function cb_func)
  */
 void Custom_ENET_Later_Transmit(uint8_t *data, uint32_t len)
 {
-	ENET_BuildBroadCastFrame(data, len);
+	uint32_t BroadCastFrame_Size=0;
 
-
-	// Encode the message using AES128
-
-
-	// Add CRC32
-
+	// Assembly output frame
+	BroadCastFrame_Size = ENET_BuildBroadCastFrame(data, len);
 
 	/* Send a multicast frame when the PHY is link up. */
-	if (EXAMPLE_ENET.SendFrame(&g_frame[0], ENET_DATA_LENGTH, ARM_ETH_MAC_TX_FRAME_EVENT) == ARM_DRIVER_OK)
+	if (EXAMPLE_ENET.SendFrame(&g_frame[0], BroadCastFrame_Size, ARM_ETH_MAC_TX_FRAME_EVENT) == ARM_DRIVER_OK)
 	{
 		SDK_DelayAtLeastUs(1000, SDK_DEVICE_MAXIMUM_CPU_CLOCK_FREQUENCY);
 	}
