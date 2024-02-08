@@ -24,6 +24,7 @@ void application_callback(uint8_t *data, uint32_t len)
 {
 	// Print the receive buffer on the console
 	PRINTF((char*)data);
+	PRINTF("\n\r");
 }
 
 
@@ -45,7 +46,8 @@ int main(void) {
     Custom_ENET_Layer_Init(application_callback);
 
 	// Send first package
-	char pck1[] = "01234567890123456789";
+	//char pck1[] = "01234567890123456789";
+    char pck1[] = "Hello world";
 	Custom_ENET_Layer_Transmit((uint8_t*)pck1, sizeof(pck1));
 
 	// Send second package
@@ -61,7 +63,7 @@ int main(void) {
 	Custom_ENET_Layer_Transmit((uint8_t*)pck4, sizeof(pck4));
 
 	// Send fifth package
-	char pck5[] = "Otoño lluvioso, año copioso";
+	char pck5[] = "Otono lluvioso, anio copioso";
 	Custom_ENET_Layer_Transmit((uint8_t*)pck5, sizeof(pck5));
 
 	// Send sixth package
@@ -69,11 +71,11 @@ int main(void) {
 	Custom_ENET_Layer_Transmit((uint8_t*)pck6, sizeof(pck6));
 
 	// Send seventh package
-	char pck7[] = "Me han dicho un dicho, que dicen que he dicho yo. Ese dicho está mal dicho, pues si yo lo hubiera dicho, estaría mejor dicho, que ese dicho que dicen que algún día dije yo.";
+	char pck7[] = "Me han dicho un dicho, que dicen que he dicho yo. Ese dicho esta mal dicho, pues si yo lo hubiera dicho, estaria mejor dicho, que ese dicho que dicen que algun dia dije yo.";
 	Custom_ENET_Layer_Transmit((uint8_t*)pck7, sizeof(pck7));
 
 	// Send eighth package
-	char pck8[] = "Pablito clavó un clavito en la calva de un calvito. Un clavito clavó Pablito en la calva de un calvito. ¿Qué clavito clavó Pablito?";
+	char pck8[] = "Pablito clavo un clavito en la calva de un calvito. Un clavito clavo Pablito en la calva de un calvito. Que clavito clavo Pablito?";
 	Custom_ENET_Layer_Transmit((uint8_t*)pck8, sizeof(pck8));
 
 
